@@ -194,7 +194,7 @@ case ${SUBCOMMAND} in
         do_run "$@"
         ;;
     lint)
-        do_lint "$@"
+        do_lint $@
         ;;
     upgrade)
         NEW=reach.$$
