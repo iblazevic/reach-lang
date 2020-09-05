@@ -306,6 +306,8 @@ export const connectAccount = async networkAccount => {
       debug(`${shad}: attach to creation at ${info.creation_block}`);
       last_block = info.creation_block;
       _ethersC = new ethers.Contract(info.address, ABI, networkAccount);
+      // XXX
+      console.log(`${shad}: contract: ${_ethersC.signer.address}`);
       return _ethersC;
     };
     const callC = async (funcName, args, value) => {
@@ -383,14 +385,31 @@ export const connectAccount = async networkAccount => {
           r_maybe = await r_fn.wait();
         } catch (e) {
           debug(e);
+
           // XXX What should we do...? If we fail, but there's no timeout delay... then we should just die
           await Timeout.set(1);
           const current_block = await getNetworkTimeNumber();
+
+          if (e.code == 'UNPREDICTABLE_GAS_LIMIT') {
+            if (block_repeat_count == 0) {
+              const curBal = await provider.getBalance(address);
+              console.log(`${shad}: ${label} has balance ${curBal} -- ${e.code}`);
+              console.log(_ethersC.signer.address);
+              // console.log(`@${current_block}: ${label} send ${funcName} ${timeout_delay} --- START --- ${JSON.stringify(munged)}`);
+              // console.log(`@${current_block}: ${label} args: ${munged.map((x) => typeof x)}`);
+              // console.log(`@${current_block}: ${label} ${e.code}`);
+            }
+          } else {
+            // It's an actual error
+            console.log(e);
+          }
+
           if (current_block == block_send_attempt) {
             block_repeat_count++;
           }
           block_send_attempt = current_block;
-          if (timeout_delay && block_repeat_count > 32) {
+          if (/* timeout_delay && */ block_repeat_count > 32) {
+
             throw Error(`${shad}: ${label} send ${funcName} ${timeout_delay} --- REPEAT @ ${block_send_attempt} x ${block_repeat_count}`);
           }
           debug(`${shad}: ${label} send ${funcName} ${timeout_delay} --- TRY FAIL --- ${last_block} ${current_block} ${block_repeat_count} ${block_send_attempt}`);
@@ -435,10 +454,11 @@ export const connectAccount = async networkAccount => {
 
       let block_poll_start = last_block;
       let block_poll_end = block_poll_start;
+      let first_time_around = true;
       while (!timeout_delay || block_poll_start < last_block + timeout_delay) {
         // console.log(
         //   `~~~ ${label} is polling [${block_poll_start}, ${block_poll_end}]\n` +
-        //     `  ~ ${label} will stop polling at ${last_block} + ${timeout_delay} = ${last_block + timeout_delay}`,
+        //   `  ~ ${label} will stop polling at ${last_block} + ${timeout_delay} = ${last_block + timeout_delay}`,
         // );
 
         const es = await provider.getLogs({
@@ -451,8 +471,13 @@ export const connectAccount = async networkAccount => {
           debug(`${shad}: ${label} recv ${ok_evt} ${timeout_delay} --- RETRY`);
           block_poll_start = block_poll_end;
 
-          await Timeout.set(1);
-          void(ethersBlockOnceP); // This might be a better option too, because we won't need to delay
+          if (first_time_around) {
+            // No need to wait for a fresh block the first time because reasons
+            first_time_around = false;
+          } else {
+            // await Timeout.set(1);
+            await ethersBlockOnceP(); // This might be a better option too, because we won't need to delay
+          }
           block_poll_end = await getNetworkTimeNumber();
 
           continue;

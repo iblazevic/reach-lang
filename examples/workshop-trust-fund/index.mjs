@@ -85,6 +85,16 @@ const runDemo = async (delay) => {
   const receiver = await stdlib.newTestAccount(startingBalance);
   const bystander = await stdlib.newTestAccount(startingBalance);
 
+
+  const balanceReport = async () => {
+    for (const [who, acc] of [['Funder', funder], ['Receiver', receiver], ['Bystander', bystander]]) {
+      const shad = acc.networkAccount.address.substring(2, 6);
+      console.log(`${shad} ${who} has a balance of ${await getBalance(acc)} ${money}`);
+    }
+  };
+
+  await balanceReport();
+
   const ctcFunder = await funder.deploy(backend);
   const ctcReceiver = await receiver.attach(backend, ctcFunder);
   const ctcBystander = await bystander.attach(backend, ctcFunder);
@@ -107,7 +117,7 @@ const runDemo = async (delay) => {
   const receiverP = (async () => {
     console.log('Receiver begins to wait...');
     await stdlib.wait(delay, ({currentTime, targetTime}) => {
-      console.log(`Receiver wait progress... ${currentTime} -> ${targetTime}`);
+      // console.log(`Receiver wait progress... ${currentTime} -> ${targetTime}`);
     });
     try {
       await backend.Receiver(stdlib, ctcReceiver, {
@@ -124,14 +134,17 @@ const runDemo = async (delay) => {
     });
   })();
 
-  await Promise.all([funderP, receiverP, bystanderP]);
-  for (const [who, acc] of [['Funder', funder], ['Receiver', receiver], ['Bystander', bystander]]) {
-    console.log(`${who} has a balance of ${await getBalance(acc)}`);
+  try {
+    await Promise.all([funderP, receiverP, bystanderP]);
+  } catch (e) {
+    console.log(`An exception has been caught`);
+    throw e;
+  } finally {
+    await balanceReport();
   }
-  console.log(`demo complete with delay ${delay}`);
 };
 
 (async () => {
-  await runDemo();
-  // await runDemo(MATURITY + REFUND + 20);
+  // await runDemo();
+  await runDemo(MATURITY + REFUND + 20);
 })();
